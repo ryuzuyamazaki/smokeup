@@ -1,0 +1,1323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
+<meta name="theme-color" content="#060d07"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="SmokeUp"/>
+<title>SmokeUp · Dhaka</title>
+<link rel="manifest" href="manifest.json"/>
+<link rel="apple-touch-icon" href="icon-192.png"/>
+
+<!-- Leaflet — free maps, no API key needed, OpenStreetMap tiles -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@700;800&display=swap" rel="stylesheet"/>
+
+<style>
+/* ══════════════════════════════════════════
+   DESIGN SYSTEM
+══════════════════════════════════════════ */
+:root{
+  --bg:       #060d07;
+  --bg2:      #0c1a0e;
+  --bg3:      #112014;
+  --g:        #4ade80;
+  --g2:       #22c55e;
+  --gd:       rgba(74,222,128,0.13);
+  --gb:       rgba(74,222,128,0.2);
+  --gbf:      rgba(74,222,128,0.06);
+  --text:     #d1fae5;
+  --muted:    #557060;
+  --dim:      #2a3e2e;
+  --danger:   #f87171;
+  --warn:     #fbbf24;
+  --mono:     'Space Mono',monospace;
+  --head:     'Syne',sans-serif;
+  --sat:      env(safe-area-inset-top,0px);
+  --sab:      env(safe-area-inset-bottom,0px);
+}
+
+*{box-sizing:border-box;margin:0;padding:0;
+  -webkit-tap-highlight-color:transparent;
+  -webkit-touch-callout:none;}
+html,body{height:100%;overflow:hidden;
+  background:var(--bg);color:var(--text);
+  font-family:var(--mono);}
+input,button,textarea,select{font-family:var(--mono)}
+
+/* ── Screens ─────────────────────────────── */
+.screen{
+  position:fixed;inset:0;
+  display:none;flex-direction:column;
+  background:var(--bg);
+  padding-top:var(--sat);
+}
+.screen.on{display:flex}
+
+/* ── Scrollable ──────────────────────────── */
+.scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-thumb{background:var(--gb);border-radius:2px}
+
+/* ══════════════════════════════════════════
+   AUTH SCREEN
+══════════════════════════════════════════ */
+#s-auth{
+  align-items:center;justify-content:center;
+  padding:28px;gap:0;
+  background:radial-gradient(ellipse at 50% 30%, rgba(74,222,128,0.07) 0%, transparent 70%),
+             var(--bg);
+}
+
+.auth-brand{text-align:center;margin-bottom:44px}
+.auth-brand .wordmark{
+  font-family:var(--head);font-size:46px;
+  color:var(--g);letter-spacing:-2.5px;
+  display:block;line-height:1;
+}
+.auth-brand .sub{
+  display:block;color:var(--muted);
+  font-size:11px;letter-spacing:4px;
+  text-transform:uppercase;margin-top:8px;
+}
+
+.f-label{
+  color:var(--g);font-size:10px;
+  letter-spacing:1.5px;text-transform:uppercase;
+  opacity:0.65;display:block;margin-bottom:8px;
+}
+.f-wrap{width:100%;max-width:320px;margin-bottom:18px}
+
+.f-input{
+  width:100%;background:rgba(255,255,255,0.035);
+  border:1.5px solid var(--gb);border-radius:13px;
+  padding:14px 16px;color:var(--text);font-size:15px;
+  outline:none;transition:border-color .2s;
+}
+.f-input:focus{border-color:var(--g);background:rgba(74,222,128,0.04)}
+.f-input::placeholder{color:var(--dim)}
+
+.vibe-row{
+  display:flex;flex-wrap:wrap;gap:8px;
+  max-width:320px;margin-bottom:26px;
+}
+.vibe-chip{
+  background:var(--gbf);border:1.5px solid rgba(74,222,128,0.15);
+  border-radius:22px;padding:8px 14px;
+  font-size:12px;color:var(--muted);cursor:pointer;
+  transition:all .15s;user-select:none;
+}
+.vibe-chip.on{
+  background:var(--gd);border-color:var(--g);
+  color:var(--g);
+}
+
+.btn-main{
+  width:100%;max-width:320px;
+  background:var(--g);border:none;border-radius:15px;
+  padding:17px;color:#000;font-size:15px;font-weight:700;
+  cursor:pointer;letter-spacing:.5px;
+  transition:opacity .15s,transform .1s;
+  font-family:var(--head);
+}
+.btn-main:active{opacity:.85;transform:scale(.99)}
+.btn-main:disabled{opacity:.3;cursor:not-allowed}
+
+/* ══════════════════════════════════════════
+   MAIN APP SHELL (map + nearby)
+══════════════════════════════════════════ */
+#s-main{padding:0}
+
+/* Top bar */
+.topbar{
+  display:flex;align-items:center;
+  justify-content:space-between;
+  padding:13px 18px;
+  background:rgba(6,13,7,0.92);
+  backdrop-filter:blur(24px);
+  border-bottom:1px solid rgba(74,222,128,0.08);
+  flex-shrink:0;z-index:60;position:relative;
+}
+.logo-row{display:flex;align-items:center;gap:9px}
+.pulse-dot{
+  width:9px;height:9px;border-radius:50%;
+  background:var(--g);
+  box-shadow:0 0 0 0 rgba(74,222,128,.7);
+  animation:sonar 2.5s ease-out infinite;
+}
+.logo-word{
+  font-family:var(--head);font-size:20px;
+  color:var(--g);letter-spacing:-1px;
+}
+.logo-city{
+  color:var(--muted);font-size:10px;
+  letter-spacing:2px;text-transform:uppercase;
+}
+.user-badge{
+  color:var(--g);font-size:11px;opacity:.75;
+  background:var(--gd);border:1px solid var(--gb);
+  border-radius:14px;padding:4px 12px;
+}
+
+/* Tab content areas */
+#tab-map{
+  flex:1;position:relative;
+  display:flex;flex-direction:column;
+}
+#tab-nearby{
+  display:none;flex:1;
+  flex-direction:column;overflow:hidden;
+}
+
+/* Bottom tab bar */
+.tabbar{
+  display:flex;
+  border-top:1px solid rgba(74,222,128,0.08);
+  background:rgba(6,13,7,0.97);
+  padding-bottom:var(--sab);
+  flex-shrink:0;z-index:60;
+}
+.tab{
+  flex:1;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  padding:9px 0 7px;gap:4px;cursor:pointer;
+  color:var(--muted);font-size:10px;
+  letter-spacing:.5px;transition:color .15s;
+  position:relative;user-select:none;
+}
+.tab.on{color:var(--g)}
+.tab.on::before{
+  content:'';position:absolute;top:0;
+  left:25%;right:25%;height:2px;
+  background:var(--g);border-radius:0 0 3px 3px;
+}
+.tab-ico{font-size:21px;line-height:1}
+
+/* ══════════════════════════════════════════
+   MAP — SNAPCHAT STYLE
+══════════════════════════════════════════ */
+#leaflet-map{width:100%;height:100%}
+
+/* Dark map tiles */
+.leaflet-container{background:#060d07!important;font-family:var(--mono)!important}
+.leaflet-tile{
+  filter:brightness(.28) saturate(.35)
+         hue-rotate(85deg) contrast(1.1);
+}
+.leaflet-control-zoom{
+  border:1px solid var(--gb)!important;
+  border-radius:11px!important;overflow:hidden;
+}
+.leaflet-control-zoom a{
+  background:rgba(6,13,7,.9)!important;
+  color:var(--g)!important;
+  border-bottom:1px solid var(--gb)!important;
+  width:32px!important;height:32px!important;
+  line-height:32px!important;font-size:17px!important;
+}
+.leaflet-control-attribution{
+  background:rgba(6,13,7,.6)!important;
+  color:var(--muted)!important;font-size:8px!important;
+}
+.leaflet-attribution-flag{display:none!important}
+
+/* Floating map action button */
+.fab{
+  position:absolute;z-index:400;
+  background:rgba(6,13,7,.94);
+  border:1.5px solid var(--g);
+  border-radius:30px;
+  padding:12px 20px;
+  color:var(--g);font-size:13px;font-weight:700;
+  cursor:pointer;
+  box-shadow:0 0 28px rgba(74,222,128,.2),
+             0 4px 16px rgba(0,0,0,.4);
+  backdrop-filter:blur(12px);
+  transition:all .2s;font-family:var(--mono);
+  user-select:none;
+}
+.fab:active{background:var(--gd);transform:scale(.97)}
+#fab-start{bottom:24px;right:16px}
+#fab-locate{bottom:24px;left:16px}
+
+/* Session preview card (pops from bottom of map) */
+#preview-card{
+  position:absolute;bottom:0;left:0;right:0;
+  z-index:500;
+  background:rgba(6,13,7,.97);
+  border-top:1px solid var(--gb);
+  border-radius:22px 22px 0 0;
+  padding:0 18px calc(20px + var(--sab));
+  transform:translateY(110%);
+  transition:transform .32s cubic-bezier(.34,1.45,.64,1);
+  backdrop-filter:blur(24px);
+}
+#preview-card.open{transform:translateY(0)}
+.card-handle{
+  width:38px;height:3px;border-radius:2px;
+  background:var(--gb);margin:14px auto 16px;
+}
+
+/* ══════════════════════════════════════════
+   NEARBY LIST
+══════════════════════════════════════════ */
+#nearby-scroll{
+  flex:1;overflow-y:auto;padding:14px 16px;
+  display:flex;flex-direction:column;gap:9px;
+}
+.list-label{
+  color:var(--g);font-size:10px;
+  letter-spacing:1px;opacity:.55;
+  text-transform:uppercase;margin-bottom:4px;
+}
+
+.scard{
+  background:var(--bg2);
+  border:1px solid rgba(74,222,128,.1);
+  border-radius:17px;padding:15px;
+  cursor:pointer;transition:border-color .2s,transform .1s;
+  user-select:none;
+}
+.scard:active{transform:scale(.99);border-color:var(--g)}
+.scard-top{
+  display:flex;justify-content:space-between;
+  align-items:flex-start;margin-bottom:12px;
+}
+.scard-user{color:var(--g);font-weight:700;font-size:14px}
+.scard-tag{color:var(--muted);font-size:12px;margin-top:3px}
+.scard-area{color:var(--g);font-size:12px;text-align:right}
+.scard-time{
+  color:var(--muted);font-size:10px;
+  margin-top:3px;text-align:right;
+}
+.scard-bot{
+  display:flex;align-items:center;gap:5px;
+}
+.dot-row{display:flex;gap:4px}
+.mdot{width:7px;height:7px;border-radius:50%;background:var(--g)}
+.sm-count{color:var(--muted);font-size:11px;margin-left:4px}
+.timer-txt{color:var(--dim);font-size:10px;margin-left:auto}
+.join-chip{
+  background:var(--gd);border:1px solid var(--gb);
+  border-radius:15px;padding:5px 13px;
+  color:var(--g);font-size:11px;flex-shrink:0;margin-left:auto;
+}
+.empty-wrap{
+  text-align:center;padding:72px 20px;color:var(--dim);
+}
+.empty-wrap .ei{font-size:44px;margin-bottom:14px}
+.empty-wrap p{font-size:13px;line-height:1.7;color:var(--muted)}
+
+/* ══════════════════════════════════════════
+   CHAT SCREEN (slides in from right)
+══════════════════════════════════════════ */
+#s-chat{
+  position:fixed;inset:0;z-index:700;
+  transform:translateX(100%);
+  transition:transform .3s cubic-bezier(.25,.8,.25,1);
+  background:var(--bg);
+  padding-top:var(--sat);
+}
+#s-chat.open{transform:translateX(0)}
+
+.chat-bar{
+  display:flex;align-items:center;gap:11px;
+  padding:13px 16px;
+  border-bottom:1px solid rgba(74,222,128,.08);
+  background:rgba(6,13,7,.98);flex-shrink:0;
+}
+.back-btn{
+  background:none;border:none;color:var(--g);
+  font-size:26px;cursor:pointer;
+  line-height:1;padding:0;width:30px;flex-shrink:0;
+}
+.chat-info{flex:1;min-width:0}
+.chat-user{
+  color:var(--g);font-weight:700;font-size:14px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.chat-sub{color:var(--muted);font-size:11px;margin-top:2px}
+.ctimer{
+  background:var(--gd);border:1px solid var(--gb);
+  border-radius:14px;padding:4px 10px;
+  color:var(--g);font-size:11px;flex-shrink:0;
+}
+.ctimer.hot{
+  color:var(--danger);
+  border-color:rgba(248,113,113,.3);
+  background:rgba(248,113,113,.06);
+}
+
+.ephem{
+  background:rgba(74,222,128,.04);
+  border-bottom:1px solid rgba(74,222,128,.06);
+  padding:6px 16px;text-align:center;
+  color:var(--muted);font-size:10px;
+  letter-spacing:.3px;flex-shrink:0;
+}
+
+/* Messages */
+.msgs{
+  flex:1;overflow-y:auto;padding:14px 16px;
+  display:flex;flex-direction:column;gap:11px;
+}
+.mw{display:flex;flex-direction:column}
+.mw.me{align-items:flex-end}
+.mw.them{align-items:flex-start}
+.msender{
+  color:var(--g);font-size:10px;
+  margin-bottom:4px;opacity:.65;
+}
+.bub{
+  max-width:78%;padding:10px 14px;
+  font-size:14px;line-height:1.45;
+  word-break:break-word;
+}
+.bub.me{
+  background:var(--g);color:#000;font-weight:600;
+  border-radius:18px 18px 4px 18px;
+}
+.bub.them{
+  background:rgba(255,255,255,.06);color:var(--text);
+  border-radius:18px 18px 18px 4px;
+}
+.mtime{color:var(--dim);font-size:10px;margin-top:4px}
+.no-msgs{
+  text-align:center;padding:48px 16px;
+  color:var(--muted);font-size:13px;
+}
+
+/* Input */
+.ibar{
+  display:flex;align-items:flex-end;gap:9px;
+  padding:11px 15px;
+  padding-bottom:max(11px, var(--sab));
+  border-top:1px solid rgba(74,222,128,.08);
+  background:rgba(6,13,7,.98);flex-shrink:0;
+}
+.tinput{
+  flex:1;background:rgba(255,255,255,.045);
+  border:1px solid var(--gb);border-radius:22px;
+  padding:11px 15px;color:var(--text);
+  font-size:14px;outline:none;resize:none;
+  max-height:96px;line-height:1.4;
+  transition:border-color .2s;
+}
+.tinput:focus{border-color:var(--g)}
+.tinput::placeholder{color:var(--muted)}
+.sbtn{
+  width:44px;height:44px;border-radius:50%;
+  flex-shrink:0;
+  background:var(--gd);
+  border:1.5px solid var(--gb);
+  color:var(--g);font-size:19px;
+  cursor:pointer;display:flex;
+  align-items:center;justify-content:center;
+  transition:all .2s;
+}
+.sbtn.go{background:var(--g);border-color:var(--g);color:#000;font-weight:700}
+.sbtn:active{transform:scale(.91)}
+
+/* ══════════════════════════════════════════
+   START SESSION SHEET
+══════════════════════════════════════════ */
+#sheet-start{
+  position:fixed;inset:0;z-index:800;
+  background:rgba(0,0,0,.78);
+  display:none;align-items:flex-end;
+  backdrop-filter:blur(8px);
+}
+#sheet-start.open{display:flex}
+.sheet{
+  width:100%;background:var(--bg2);
+  border-top:1px solid var(--gb);
+  border-radius:24px 24px 0 0;
+  padding:18px 20px calc(max(32px,var(--sab)) + 12px);
+  animation:sheetUp .32s cubic-bezier(.34,1.3,.64,1);
+  max-height:90vh;overflow-y:auto;
+}
+.s-handle{
+  width:40px;height:3px;border-radius:2px;
+  background:var(--gb);margin:0 auto 20px;
+}
+.s-title{
+  color:var(--g);font-family:var(--head);
+  font-size:20px;margin-bottom:20px;
+}
+.s-label{
+  color:var(--g);font-size:10px;
+  letter-spacing:1.5px;text-transform:uppercase;
+  opacity:.65;display:block;margin-bottom:10px;
+}
+.loc-btn{
+  width:100%;background:var(--gd);
+  border:1.5px solid var(--gb);border-radius:12px;
+  padding:14px;color:var(--g);font-size:13px;
+  cursor:pointer;margin-bottom:18px;
+  transition:background .2s;font-family:var(--mono);
+}
+.loc-btn:active{background:rgba(74,222,128,.22)}
+.loc-ok{
+  background:rgba(74,222,128,.1);
+  border:1px solid rgba(74,222,128,.3);
+  border-radius:12px;padding:12px 14px;
+  color:var(--g);font-size:12px;margin-bottom:18px;
+}
+.area-row{
+  display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px;
+}
+.achip{
+  background:rgba(255,255,255,.04);
+  border:1.5px solid rgba(74,222,128,.15);
+  border-radius:20px;padding:8px 14px;
+  font-size:12px;color:var(--muted);
+  cursor:pointer;transition:all .15s;
+  user-select:none;
+}
+.achip.on{
+  background:var(--gd);border-color:var(--g);color:var(--g);
+}
+.info-box{
+  background:rgba(255,255,255,.03);border-radius:11px;
+  padding:12px 14px;margin-bottom:18px;
+  color:var(--muted);font-size:11px;line-height:1.9;
+}
+.drop-btn{
+  width:100%;background:var(--g);border:none;
+  border-radius:14px;padding:16px;color:#000;
+  font-size:15px;font-weight:700;cursor:pointer;
+  font-family:var(--head);letter-spacing:.5px;
+  transition:opacity .15s;
+}
+.drop-btn:disabled{opacity:.3;cursor:not-allowed}
+.drop-btn:active{opacity:.85}
+
+/* ══════════════════════════════════════════
+   SHARED
+══════════════════════════════════════════ */
+.green-btn{
+  width:100%;background:var(--g);border:none;
+  border-radius:13px;padding:14px;color:#000;
+  font-size:14px;font-weight:700;cursor:pointer;
+  font-family:var(--head);transition:opacity .15s;
+}
+.green-btn:active{opacity:.85}
+
+/* Toast */
+#toast{
+  position:fixed;
+  bottom:calc(68px + var(--sab) + 8px);
+  left:50%;
+  transform:translateX(-50%) translateY(16px);
+  background:var(--g);color:#000;
+  border-radius:24px;padding:11px 20px;
+  font-size:13px;font-weight:700;font-family:var(--head);
+  white-space:nowrap;z-index:9999;
+  opacity:0;transition:all .28s;
+  pointer-events:none;
+  box-shadow:0 4px 24px rgba(74,222,128,.35);
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ══════════════════════════════════════════
+   ANIMATIONS
+══════════════════════════════════════════ */
+@keyframes sonar{
+  0%  {box-shadow:0 0 0 0 rgba(74,222,128,.7)}
+  70% {box-shadow:0 0 0 8px rgba(74,222,128,0)}
+  100%{box-shadow:0 0 0 0 rgba(74,222,128,0)}
+}
+@keyframes sheetUp{
+  from{transform:translateY(100%);opacity:0}
+  to  {transform:translateY(0);opacity:1}
+}
+@keyframes popIn{
+  from{transform:scale(.6);opacity:0}
+  to  {transform:scale(1);opacity:1}
+}
+@keyframes ripple{
+  0%  {transform:translate(-50%,-50%) scale(0);opacity:.8}
+  100%{transform:translate(-50%,-50%) scale(4);opacity:0}
+}
+.fadein{animation:popIn .25s cubic-bezier(.34,1.56,.64,1) forwards}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════
+  AUTH SCREEN
+══════════════════════════════════ -->
+<div class="screen on" id="s-auth">
+  <div class="auth-brand">
+    <span class="wordmark">smokeup</span>
+    <span class="sub">dhaka · find your people</span>
+  </div>
+
+  <div class="f-wrap">
+    <span class="f-label">username</span>
+    <input class="f-input" id="inp-user"
+      type="text" placeholder="rooftop_vai"
+      maxlength="20" autocomplete="off" autocapitalize="none"
+      autocorrect="off" spellcheck="false"/>
+  </div>
+
+  <span class="f-label" style="width:100%;max-width:320px;margin-bottom:10px">vibe tag</span>
+  <div class="vibe-row" id="vibe-row"></div>
+
+  <button class="btn-main" id="btn-enter" onclick="doAuth()" disabled>
+    enter →
+  </button>
+
+  <p style="color:var(--muted);font-size:11px;margin-top:18px;
+            text-align:center;line-height:1.8;max-width:260px">
+    anonymous · no account needed<br>sessions auto-expire in 90 min
+  </p>
+</div>
+
+<!-- ══════════════════════════════════
+  MAIN APP
+══════════════════════════════════ -->
+<div class="screen" id="s-main">
+
+  <!-- Top bar -->
+  <div class="topbar">
+    <div class="logo-row">
+      <div class="pulse-dot"></div>
+      <span class="logo-word">smokeup</span>
+      <span class="logo-city">dhaka</span>
+    </div>
+    <div class="user-badge" id="user-badge"></div>
+  </div>
+
+  <!-- MAP TAB -->
+  <div id="tab-map">
+    <div id="leaflet-map"></div>
+
+    <!-- Locate me button -->
+    <button class="fab" id="fab-locate" onclick="locateMe()">
+      📡 locate me
+    </button>
+
+    <!-- Start session button -->
+    <button class="fab" id="fab-start" onclick="openSheet()">
+      📍 start session
+    </button>
+
+    <!-- Session preview card -->
+    <div id="preview-card">
+      <div class="card-handle"></div>
+      <div id="preview-inner"></div>
+    </div>
+  </div>
+
+  <!-- NEARBY TAB -->
+  <div id="tab-nearby">
+    <div id="nearby-scroll">
+      <div class="list-label" id="nearby-lbl">loading...</div>
+    </div>
+  </div>
+
+  <!-- Tab bar -->
+  <div class="tabbar">
+    <div class="tab on" id="tbtn-map" onclick="switchTab('map')">
+      <span class="tab-ico">🗺️</span>
+      <span>map</span>
+    </div>
+    <div class="tab" id="tbtn-nearby" onclick="switchTab('nearby')">
+      <span class="tab-ico">📍</span>
+      <span id="nearby-lbl-tab">nearby</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════
+  CHAT SCREEN
+══════════════════════════════════ -->
+<div id="s-chat">
+  <div class="chat-bar">
+    <button class="back-btn" onclick="closeChat()">←</button>
+    <div class="chat-info">
+      <div class="chat-user" id="chat-user"></div>
+      <div class="chat-sub" id="chat-sub"></div>
+    </div>
+    <div class="ctimer" id="ctimer"></div>
+  </div>
+  <div class="ephem">
+    💨 chat disappears when session ends · nothing is saved
+  </div>
+  <div class="msgs" id="msgs"></div>
+  <div class="ibar">
+    <textarea class="tinput" id="tinput"
+      placeholder="kichu bol..."
+      rows="1"
+      oninput="onTInput(this)"
+      onkeydown="onTKey(event)"></textarea>
+    <button class="sbtn" id="sbtn" onclick="sendMsg()">→</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════
+  START SESSION SHEET
+══════════════════════════════════ -->
+<div id="sheet-start" onclick="sheetOutside(event)">
+  <div class="sheet">
+    <div class="s-handle"></div>
+    <div class="s-title">📍 start a session</div>
+
+    <span class="s-label">step 1 — location</span>
+    <div id="loc-wrap">
+      <button class="loc-btn" onclick="getGPS()">
+        📡 tap to get my GPS location
+      </button>
+    </div>
+
+    <span class="s-label" style="margin-top:4px">step 2 — area in dhaka</span>
+    <div class="area-row" id="area-row"></div>
+
+    <div class="info-box" id="sheet-info"></div>
+
+    <button class="drop-btn" id="drop-btn"
+      onclick="dropPin()" disabled>
+      drop the pin 📍
+    </button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- ══════════════════════════════════
+  FIREBASE + FULL APP LOGIC
+══════════════════════════════════ -->
+<script type="module">
+// ─────────────────────────────────────────────────────
+//  🔥  FIREBASE CONFIG
+//  Replace the PASTE_... values with your Firebase keys
+//  Get them from: console.firebase.google.com
+//  → Your project → ⚙ Settings → Your apps → </> Web
+// ─────────────────────────────────────────────────────
+import { initializeApp } from
+  "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
+import { getAuth, signInAnonymously } from
+  "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
+import {
+  getFirestore, collection, addDoc, onSnapshot,
+  doc, updateDoc, deleteDoc, query, orderBy,
+  serverTimestamp, arrayUnion, arrayRemove
+} from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+
+// ⚠️ REPLACE THESE 6 VALUES WITH YOURS FROM FIREBASE CONSOLE
+const FB = {
+  apiKey:            "PASTE_API_KEY_HERE",
+  authDomain:        "PASTE_AUTH_DOMAIN_HERE",
+  projectId:         "PASTE_PROJECT_ID_HERE",
+  storageBucket:     "PASTE_STORAGE_BUCKET_HERE",
+  messagingSenderId: "PASTE_SENDER_ID_HERE",
+  appId:             "PASTE_APP_ID_HERE",
+};
+
+// ─────────────────────────────────────────────────────
+//  CONSTANTS
+// ─────────────────────────────────────────────────────
+const DHAKA      = [23.7805, 90.4016];
+const SESSION_MS = 90 * 60 * 1000; // 90 minutes
+
+const TAGS  = [
+  'solo 🌿','squad 🔥','rooftop 🌙','balcony 🌬️',
+  'night owl 🦉','chill 😮‍💨','parkside 🌳','late night 🌃',
+];
+const AREAS = [
+  'Dhanmondi','Gulshan','Banani','Mirpur','Uttara',
+  'Mohammadpur','Bashundhara','Old Dhaka','Motijheel',
+  'Polashi','Rayer Bazar','Badda','Khilgaon',
+];
+
+// ─────────────────────────────────────────────────────
+//  APP STATE
+// ─────────────────────────────────────────────────────
+let app, auth, db;
+let user         = null;  // { username, tag }
+let sessions     = [];    // live session list
+let openSession  = null;  // session whose chat is open
+let chatUnsub    = null;
+let sessUnsub    = null;
+let map          = null;
+let markers      = {};    // { id: L.marker }
+let myMarker     = null;  // your own location dot
+let myCoords     = null;  // { lat, lng }
+let newCoords    = null;  // coords for new session
+let newArea      = '';
+let selTag       = TAGS[0];
+let timerTick    = null;
+let watchId      = null;  // geolocation watchPosition id
+
+// ─────────────────────────────────────────────────────
+//  BOOT
+// ─────────────────────────────────────────────────────
+(function boot(){
+  // Build vibe chips
+  const vr = document.getElementById('vibe-row');
+  TAGS.forEach(t => {
+    const el = mkEl('div', 'vibe-chip' + (t===selTag?' on':''), t);
+    el.onclick = () => {
+      selTag = t;
+      vr.querySelectorAll('.vibe-chip').forEach(c=>c.classList.remove('on'));
+      el.classList.add('on');
+    };
+    vr.appendChild(el);
+  });
+
+  // Build area chips
+  const ar = document.getElementById('area-row');
+  AREAS.forEach(a => {
+    const el = mkEl('div','achip',a);
+    el.onclick = () => {
+      newArea = a;
+      ar.querySelectorAll('.achip').forEach(c=>c.classList.remove('on'));
+      el.classList.add('on');
+      checkDrop();
+    };
+    ar.appendChild(el);
+  });
+
+  // Username validation
+  document.getElementById('inp-user').addEventListener('input', e => {
+    const v = e.target.value.trim();
+    document.getElementById('btn-enter').disabled = v.length < 3 || v.includes(' ');
+  });
+
+  // Restore saved user
+  try {
+    const saved = JSON.parse(localStorage.getItem('su_user')||'null');
+    if (saved?.username) { user = saved; launchApp(); return; }
+  } catch{}
+
+  // Init Firebase (needed even before login)
+  initFB();
+})();
+
+function initFB(){
+  if (app) return;
+  app  = initializeApp(FB);
+  auth = getAuth(app);
+  db   = getFirestore(app);
+}
+
+// ─────────────────────────────────────────────────────
+//  AUTH
+// ─────────────────────────────────────────────────────
+window.doAuth = async function(){
+  const name = document.getElementById('inp-user').value.trim().toLowerCase();
+  if (name.length < 3 || name.includes(' ')){
+    toast('⚠ username: min 3 chars, no spaces'); return;
+  }
+  const btn = document.getElementById('btn-enter');
+  btn.disabled = true;
+  btn.textContent = 'connecting...';
+  try {
+    initFB();
+    await signInAnonymously(auth);
+    user = { username: name, tag: selTag };
+    localStorage.setItem('su_user', JSON.stringify(user));
+    launchApp();
+  } catch(e){
+    toast('⚠ connection failed — check internet');
+    btn.disabled = false;
+    btn.textContent = 'enter →';
+  }
+};
+
+function launchApp(){
+  initFB();
+  document.getElementById('user-badge').textContent = '@'+user.username;
+  document.getElementById('sheet-info').innerHTML =
+    `🌿 your tag: <span style="color:var(--g)">${user.tag}</span><br>
+     ⏱ session auto-expires in 90 minutes<br>
+     👥 anyone in dhaka can see & join`;
+  show('s-main'); hide('s-auth');
+  initMap();
+  startSessions();
+  startLiveLocation();
+}
+
+// ─────────────────────────────────────────────────────
+//  MAP — SNAPCHAT STYLE LIVE MAP
+// ─────────────────────────────────────────────────────
+function initMap(){
+  if (map) return;
+  map = L.map('leaflet-map',{
+    center: DHAKA, zoom: 13,
+    zoomControl: true,
+    attributionControl: true,
+  });
+  // OpenStreetMap tiles — completely free, no API key
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    attribution:'© OpenStreetMap',
+    maxZoom:19, minZoom:10,
+  }).addTo(map);
+
+  // Tap on empty map = close preview
+  map.on('click', closePreview);
+}
+
+// Live track user location (like Snapchat map dot)
+function startLiveLocation(){
+  if (!navigator.geolocation) return;
+  watchId = navigator.geolocation.watchPosition(
+    pos => {
+      myCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      updateMyDot();
+    },
+    () => { myCoords = { lat: DHAKA[0], lng: DHAKA[1] }; },
+    { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+  );
+}
+
+// Your own glowing blue dot (like Google Maps / Snapchat)
+function updateMyDot(){
+  if (!map || !myCoords) return;
+  const ll = [myCoords.lat, myCoords.lng];
+  if (myMarker){
+    myMarker.setLatLng(ll);
+  } else {
+    const html = `
+      <div style="position:relative;width:20px;height:20px">
+        <div style="
+          position:absolute;top:50%;left:50%;
+          width:40px;height:40px;border-radius:50%;
+          background:rgba(96,165,250,0.2);
+          transform:translate(-50%,-50%);
+          animation:ripple 2s ease-out infinite;
+        "></div>
+        <div style="
+          position:absolute;inset:0;border-radius:50%;
+          background:#60a5fa;
+          border:3px solid #fff;
+          box-shadow:0 0 14px rgba(96,165,250,.8);
+        "></div>
+      </div>`;
+    myMarker = L.marker(ll,{
+      icon: L.divIcon({
+        html, className:'', iconSize:[20,20], iconAnchor:[10,10]
+      }),
+      zIndexOffset: 1000,
+    }).addTo(map);
+  }
+}
+
+// Locate me button
+window.locateMe = function(){
+  if (myCoords){
+    map.flyTo([myCoords.lat, myCoords.lng], 15, {duration:.8});
+    toast('📍 found you!');
+  } else {
+    toast('📡 getting location...');
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        myCoords = { lat:pos.coords.latitude, lng:pos.coords.longitude };
+        map.flyTo([myCoords.lat, myCoords.lng], 15, {duration:.8});
+        updateMyDot();
+        toast('📍 found you!');
+      },
+      () => toast('⚠ enable location in browser settings')
+    );
+  }
+};
+
+// Add a session pin to the map (green glowing dot)
+function addPin(s){
+  if (!map) return;
+  const isMe  = s.username === user.username;
+  const count = s.members?.length || 1;
+  const sz    = isMe ? 22 : 16;
+  const bc    = isMe ? '#fff' : '#4ade80';
+  const glow  = isMe ? '0 0 18px #4ade80,0 0 6px #fff' : '0 0 12px rgba(74,222,128,.8)';
+
+  const html = `
+    <div style="position:relative;width:${sz}px;height:${sz}px">
+      <div style="
+        position:absolute;top:50%;left:50%;
+        width:${sz+16}px;height:${sz+16}px;
+        border-radius:50%;
+        background:rgba(74,222,128,0.18);
+        transform:translate(-50%,-50%);
+        animation:sonar 2.5s ease-out infinite;
+      "></div>
+      <div style="
+        position:absolute;inset:0;border-radius:50%;
+        background:#22c55e;
+        border:2.5px solid ${bc};
+        box-shadow:${glow};
+        display:flex;align-items:center;justify-content:center;
+        font-size:8px;font-weight:900;color:#000;
+        animation:popIn .3s cubic-bezier(.34,1.56,.64,1);
+      ">${count>1?count:''}</div>
+    </div>`;
+
+  const icon = L.divIcon({
+    html, className:'',
+    iconSize:[sz,sz], iconAnchor:[sz/2,sz/2],
+  });
+  const m = L.marker([s.lat, s.lng],{icon})
+    .addTo(map)
+    .on('click',() => showPreview(s));
+  markers[s.id] = m;
+}
+
+function removePin(id){
+  if (markers[id]){ markers[id].remove(); delete markers[id]; }
+}
+
+// Show session preview card at bottom of map
+function showPreview(s){
+  openSession = s;
+  const mins = minsLeft(s.expiresAt);
+  const count = s.members?.length||1;
+  document.getElementById('preview-inner').innerHTML = `
+    <div style="display:flex;justify-content:space-between;
+                align-items:flex-start;margin-bottom:14px">
+      <div>
+        <div style="color:var(--g);font-weight:700;font-size:15px">
+          @${s.username}
+        </div>
+        <div style="color:var(--muted);font-size:12px;margin-top:3px">
+          ${s.tag}
+        </div>
+      </div>
+      <div style="text-align:right">
+        <div style="color:var(--g);font-size:13px">${s.area}</div>
+        <div style="color:var(--muted);font-size:11px;margin-top:2px">
+          ${count} smoking · ⏱ ${mins}m left
+        </div>
+      </div>
+    </div>
+    <button class="green-btn" onclick="openChat(openSession)">
+      join session →
+    </button>`;
+  document.getElementById('preview-card').classList.add('open');
+}
+
+function closePreview(){
+  document.getElementById('preview-card').classList.remove('open');
+}
+
+// ─────────────────────────────────────────────────────
+//  SESSIONS (Firestore real-time)
+// ─────────────────────────────────────────────────────
+function startSessions(){
+  if (sessUnsub) sessUnsub();
+  sessUnsub = onSnapshot(collection(db,'sessions'), snap => {
+    const now  = Date.now();
+    const fresh = [];
+    snap.forEach(d => {
+      const s = { id:d.id, ...d.data() };
+      if (new Date(s.expiresAt)>now && !s.banned) fresh.push(s);
+    });
+    const freshIds = new Set(fresh.map(s=>s.id));
+    const oldIds   = new Set(sessions.map(s=>s.id));
+
+    // Remove expired/gone pins
+    sessions.filter(s=>!freshIds.has(s.id)).forEach(s=>removePin(s.id));
+    // Add new pins
+    fresh.filter(s=>!oldIds.has(s.id)).forEach(s=>addPin(s));
+    // Update changed pins (member count etc.)
+    fresh.filter(s=>oldIds.has(s.id)).forEach(s=>{ removePin(s.id); addPin(s); });
+
+    sessions = fresh;
+    renderNearby();
+    document.getElementById('nearby-lbl-tab').textContent =
+      fresh.length > 0 ? `nearby (${fresh.length})` : 'nearby';
+  });
+}
+
+function renderNearby(){
+  const box = document.getElementById('nearby-scroll');
+  const lbl = document.getElementById('nearby-lbl');
+  lbl.textContent = sessions.length
+    ? `${sessions.length} active sessions near you`
+    : 'no sessions right now';
+
+  box.querySelectorAll('.scard,.empty-wrap').forEach(e=>e.remove());
+
+  if (!sessions.length){
+    const el = mkEl('div','empty-wrap fadein');
+    el.innerHTML = `<div class="ei">🌿</div>
+      <p>no sessions right now<br>be the first one out tonight</p>`;
+    box.appendChild(el);
+    return;
+  }
+
+  sessions.forEach(s => {
+    const isMe  = s.username === user.username;
+    const count = s.members?.length||1;
+    const mins  = minsLeft(s.expiresAt);
+    const card  = mkEl('div','scard fadein');
+    card.innerHTML = `
+      <div class="scard-top">
+        <div>
+          <div class="scard-user">@${s.username}
+            ${isMe?`<span style="color:var(--muted);font-size:10px;
+              background:rgba(255,255,255,.05);padding:2px 8px;
+              border-radius:10px;margin-left:6px">you</span>`:''}
+          </div>
+          <div class="scard-tag">${s.tag}</div>
+        </div>
+        <div>
+          <div class="scard-area">${s.area}</div>
+          <div class="scard-time">⏱ ${mins}m left</div>
+        </div>
+      </div>
+      <div class="scard-bot">
+        <div class="dot-row">
+          ${[...Array(Math.min(count,6))].map((_,i)=>
+            `<div class="mdot" style="opacity:${.35+i*.12}"></div>`
+          ).join('')}
+          <span class="sm-count">${count} smoking</span>
+        </div>
+        ${!isMe?`<div class="join-chip">join →</div>`:''}
+      </div>`;
+    if (!isMe) card.onclick = () => openChat(s);
+    box.appendChild(card);
+  });
+}
+
+// ─────────────────────────────────────────────────────
+//  CHAT
+// ─────────────────────────────────────────────────────
+window.openChat = async function(s){
+  openSession = s;
+  closePreview();
+  document.getElementById('chat-user').textContent  = '@'+s.username;
+  document.getElementById('chat-sub').textContent   =
+    `${s.members?.length||1} smoking · ${s.area} · ${s.tag}`;
+  tickTimer();
+  if (timerTick) clearInterval(timerTick);
+  timerTick = setInterval(tickTimer, 30000);
+
+  document.getElementById('msgs').innerHTML =
+    `<div class="no-msgs">session shuru koro 🌿</div>`;
+
+  // Stop old listener
+  if (chatUnsub){ chatUnsub(); chatUnsub=null; }
+
+  // Join session in DB
+  try {
+    await updateDoc(doc(db,'sessions',s.id),{
+      members: arrayUnion(user.username)
+    });
+  } catch{}
+
+  // Listen to messages
+  const q = query(
+    collection(db,'sessions',s.id,'messages'),
+    orderBy('createdAt','asc')
+  );
+  chatUnsub = onSnapshot(q, snap => {
+    const msgs = [];
+    snap.forEach(d => msgs.push({id:d.id,...d.data()}));
+    renderMsgs(msgs);
+  });
+
+  document.getElementById('s-chat').classList.add('open');
+};
+
+window.closeChat = async function(){
+  document.getElementById('s-chat').classList.remove('open');
+  if (chatUnsub){ chatUnsub(); chatUnsub=null; }
+  if (timerTick){ clearInterval(timerTick); timerTick=null; }
+  if (openSession){
+    try {
+      await updateDoc(doc(db,'sessions',openSession.id),{
+        members: arrayRemove(user.username)
+      });
+    } catch{}
+  }
+};
+
+function tickTimer(){
+  if (!openSession) return;
+  const m = minsLeft(openSession.expiresAt);
+  const el = document.getElementById('ctimer');
+  el.textContent = `⏱ ${m}m`;
+  el.className = 'ctimer' + (m<15?' hot':'');
+}
+
+function renderMsgs(msgs){
+  const box = document.getElementById('msgs');
+  const atBot = box.scrollHeight - box.scrollTop - box.clientHeight < 90;
+  if (!msgs.length){
+    box.innerHTML = `<div class="no-msgs">session shuru koro 🌿</div>`;
+    return;
+  }
+  box.innerHTML = msgs.map(m => {
+    const me   = m.username === user.username;
+    const time = m.createdAt?.toDate
+      ? m.createdAt.toDate().toLocaleTimeString('en-BD',{hour:'2-digit',minute:'2-digit'})
+      : '';
+    return `
+      <div class="mw ${me?'me':'them'}">
+        ${!me?`<div class="msender">@${m.username}</div>`:''}
+        <div class="bub ${me?'me':'them'}">${esc(m.text)}</div>
+        <div class="mtime">${time}</div>
+      </div>`;
+  }).join('');
+  if (atBot) box.scrollTop = box.scrollHeight;
+}
+
+window.onTInput = function(el){
+  el.style.height='auto';
+  el.style.height = Math.min(el.scrollHeight,96)+'px';
+  document.getElementById('sbtn').className =
+    'sbtn'+(el.value.trim()?' go':'');
+};
+window.onTKey = function(e){
+  if (e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendMsg(); }
+};
+window.sendMsg = async function(){
+  const el = document.getElementById('tinput');
+  const text = el.value.trim();
+  if (!text||!openSession) return;
+  el.value=''; el.style.height='auto';
+  document.getElementById('sbtn').className='sbtn';
+  try {
+    await addDoc(
+      collection(db,'sessions',openSession.id,'messages'),
+      { username:user.username, text, createdAt:serverTimestamp() }
+    );
+  } catch{ toast('⚠ send failed'); }
+};
+
+// ─────────────────────────────────────────────────────
+//  START SESSION SHEET
+// ─────────────────────────────────────────────────────
+window.openSheet = function(){
+  document.getElementById('sheet-start').classList.add('open');
+};
+window.sheetOutside = function(e){
+  if (e.target===document.getElementById('sheet-start'))
+    document.getElementById('sheet-start').classList.remove('open');
+};
+
+window.getGPS = function(){
+  const w = document.getElementById('loc-wrap');
+  w.innerHTML = `<div class="loc-btn" style="opacity:.6">📡 getting location...</div>`;
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      newCoords = { lat:pos.coords.latitude, lng:pos.coords.longitude };
+      w.innerHTML = `<div class="loc-ok">
+        ✓ got your location (${newCoords.lat.toFixed(4)}, ${newCoords.lng.toFixed(4)})
+      </div>`;
+      // Also set as myCoords + update dot
+      myCoords = newCoords;
+      updateMyDot();
+      checkDrop();
+    },
+    () => {
+      // Fallback to Dhaka center
+      newCoords = { lat:DHAKA[0], lng:DHAKA[1] };
+      w.innerHTML = `<div class="loc-ok" style="color:var(--muted)">
+        📍 using dhaka center (location was denied)
+      </div>`;
+      checkDrop();
+    },
+    { enableHighAccuracy:true, timeout:12000 }
+  );
+};
+
+function checkDrop(){
+  document.getElementById('drop-btn').disabled = !(newCoords && newArea);
+}
+
+window.dropPin = async function(){
+  if (!newCoords||!newArea) return;
+  const btn = document.getElementById('drop-btn');
+  btn.disabled=true; btn.textContent='dropping...';
+  try {
+    const expiresAt = new Date(Date.now()+SESSION_MS).toISOString();
+    const ref = await addDoc(collection(db,'sessions'),{
+      username:  user.username,
+      tag:       user.tag,
+      lat:       newCoords.lat,
+      lng:       newCoords.lng,
+      area:      newArea,
+      members:   [user.username],
+      createdAt: serverTimestamp(),
+      expiresAt,
+      banned:    false,
+    });
+    document.getElementById('sheet-start').classList.remove('open');
+    resetSheet();
+    map?.flyTo([newCoords.lat, newCoords.lng], 15, {duration:.8});
+    toast('📍 session dropped! people can see you now 🌿');
+  } catch(e){
+    toast('⚠ failed to drop. check internet');
+    btn.disabled=false; btn.textContent='drop the pin 📍';
+  }
+};
+
+function resetSheet(){
+  newCoords=null; newArea='';
+  document.getElementById('loc-wrap').innerHTML =
+    `<button class="loc-btn" onclick="getGPS()">📡 tap to get my GPS location</button>`;
+  document.querySelectorAll('.achip').forEach(c=>c.classList.remove('on'));
+  document.getElementById('drop-btn').disabled=true;
+  document.getElementById('drop-btn').textContent='drop the pin 📍';
+}
+
+// ─────────────────────────────────────────────────────
+//  UI HELPERS
+// ─────────────────────────────────────────────────────
+window.switchTab = function(t){
+  document.getElementById('tab-map').style.display    = t==='map'?'flex':'none';
+  document.getElementById('tab-nearby').style.display = t==='nearby'?'flex':'none';
+  document.getElementById('tbtn-map').className    = 'tab'+(t==='map'?' on':'');
+  document.getElementById('tbtn-nearby').className = 'tab'+(t==='nearby'?' on':'');
+  if (t==='map') setTimeout(()=>map?.invalidateSize(),60);
+};
+
+function show(id){ document.getElementById(id).classList.add('on'); }
+function hide(id){ document.getElementById(id).classList.remove('on'); }
+
+let _tt;
+function toast(msg){
+  const el = document.getElementById('toast');
+  el.textContent=msg; el.classList.add('show');
+  clearTimeout(_tt); _tt=setTimeout(()=>el.classList.remove('show'),2800);
+}
+window.toast = toast;
+
+function minsLeft(iso){
+  return Math.max(0, Math.round((new Date(iso)-Date.now())/60000));
+}
+
+function esc(s){
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/\n/g,'<br>');
+}
+
+function mkEl(tag, cls='', text=''){
+  const el = document.createElement(tag);
+  if (cls)  el.className = cls;
+  if (text) el.textContent = text;
+  return el;
+}
+
+// Register service worker for PWA install
+if ('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+
+// Expose needed globals for HTML onclick
+window.openSession  = null;
+window.closePreview = closePreview;
+</script>
+</body>
+</html>
